@@ -5,18 +5,31 @@ import cv2
 import tempfile
 import os
 import numpy as np
+import requests
 
 st.title("Weapon Detection App")
 
-# 1. Load your local YOLO .pt model (change path to your actual file)
-model_path = "today_weapon_model_best.pt"
-with st.spinner("Loading model..."):
-    model = YOLO(model_path)
-st.success("Model loaded successfully!")
+# Model settings
+MODEL_PATH = "today_weapon_model_best.pt"
+MODEL_URL = "https://drive.google.com/uc?export=download&id=1kZIT974w1I8i8or0kDf5EK1dSLsYNog0"
 
-# 2. Choose input type
+# 1. Download model from Google Drive if not available
+if not os.path.exists(MODEL_PATH):
+    st.warning("Model file not found. Downloading...")
+    response = requests.get(MODEL_URL)
+    with open(MODEL_PATH, "wb") as f:
+        f.write(response.content)
+    st.success("✅ Model downloaded successfully!")
+
+# 2. Load model
+with st.spinner("Loading model..."):
+    model = YOLO(MODEL_PATH)
+st.success("✅ Model loaded successfully!")
+
+# 3. Input type selection
 input_type = st.radio("Select Input Type", ("Image", "Video", "Webcam"))
 
+# 4. Functions
 def run_inference_on_image(img):
     results = model(img)
     annotated_img = results[0].plot()
@@ -25,20 +38,18 @@ def run_inference_on_image(img):
 def run_inference_on_video(video_path):
     cap = cv2.VideoCapture(video_path)
     stframe = st.empty()
-
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
-        # Convert BGR to RGB for model
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = model(frame_rgb)
         annotated_frame = results[0].plot()
-        # Convert back to BGR for display with OpenCV (if needed)
         annotated_frame = cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR)
         stframe.image(annotated_frame, channels="BGR")
     cap.release()
 
+# 5. Image Upload
 if input_type == "Image":
     uploaded_file = st.file_uploader("Upload Image", type=["jpg", "jpeg", "png"])
     if uploaded_file is not None:
@@ -47,19 +58,19 @@ if input_type == "Image":
         annotated_img = run_inference_on_image(img)
         st.image(annotated_img, caption="Detection Result", use_column_width=True)
 
+# 6. Video Upload
 elif input_type == "Video":
     uploaded_video = st.file_uploader("Upload Video", type=["mp4", "avi", "mov"])
     if uploaded_video is not None:
-        # Save to temp file to read with OpenCV
         tfile = tempfile.NamedTemporaryFile(delete=False)
         tfile.write(uploaded_video.read())
         run_inference_on_video(tfile.name)
         os.unlink(tfile.name)
 
+# 7. Webcam
 elif input_type == "Webcam":
     st.info("Click Start to open webcam and run detection.")
     start = st.button("Start Webcam")
-
     if start:
         cap = cv2.VideoCapture(0)
         stframe = st.empty()
@@ -73,8 +84,7 @@ elif input_type == "Webcam":
             annotated_frame = results[0].plot()
             annotated_frame = cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR)
             stframe.image(annotated_frame, channels="BGR")
-            
-            # Break loop if user closes Streamlit or presses some key
+
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
         cap.release()
