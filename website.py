@@ -9,7 +9,7 @@ import numpy as np
 st.title("Weapon Detection App")
 
 # 1. Load your local YOLO .pt model (change path to your actual file)
-model_path = r"C:\Users\praveen sana\OneDrive\Desktop\vikas\vikass\vikas\practise\today_weapon_data\today_weapon_model_best.pt"
+model_path = r"today_weapon_model_best.pt"
 with st.spinner("Loading model..."):
     model = YOLO(model_path)
 st.success("Model loaded successfully!")
