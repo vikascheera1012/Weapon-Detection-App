@@ -11,7 +11,7 @@ st.title("Weapon Detection App")
 # 1. Load your local YOLO .pt model (change path to your actual file)
 model_path = r"today_weapon_model_best.pt"
 with st.spinner("Loading model..."):
-    model = YOLO(model_path)
+    model = YOLO("today_weapon_model_best.pt")
 st.success("Model loaded successfully!")
 
 # 2. Choose input type
