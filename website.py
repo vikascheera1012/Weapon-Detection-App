@@ -6,14 +6,16 @@ import tempfile
 import os
 import numpy as np
 import requests
+import time
 
-st.title("Weapon Detection App")
+st.set_page_config(page_title="Weapon Detection", layout="wide")
+st.title("🔫 Weapon Detection App (Image | Video | Webcam)")
 
-# Model settings
+# MODEL CONFIG
 MODEL_PATH = "today_weapon_model_best.pt"
 MODEL_URL = "https://drive.google.com/uc?export=download&id=1kZIT974w1I8i8or0kDf5EK1dSLsYNog0"
 
-# 1. Download model from Google Drive if not available
+# 🔽 Download model if not exists
 if not os.path.exists(MODEL_PATH):
     st.warning("Model file not found. Downloading...")
     response = requests.get(MODEL_URL)
@@ -21,70 +23,73 @@ if not os.path.exists(MODEL_PATH):
         f.write(response.content)
     st.success("✅ Model downloaded successfully!")
 
-# 2. Load model
-with st.spinner("Loading model..."):
-    model = YOLO(MODEL_PATH)
-st.success("✅ Model loaded successfully!")
+# 🧠 Load model
+@st.cache_resource
+def load_model():
+    return YOLO(MODEL_PATH)
 
-# 3. Input type selection
+with st.spinner("Loading model..."):
+    model = load_model()
+st.success("✅ Model loaded!")
+
+# 📥 Input selection
 input_type = st.radio("Select Input Type", ("Image", "Video", "Webcam"))
 
-# 4. Functions
-def run_inference_on_image(img):
-    results = model(img)
-    annotated_img = results[0].plot()
-    return annotated_img
-
-def run_inference_on_video(video_path):
-    cap = cv2.VideoCapture(video_path)
-    stframe = st.empty()
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = model(frame_rgb)
-        annotated_frame = results[0].plot()
-        annotated_frame = cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR)
-        stframe.image(annotated_frame, channels="BGR")
-    cap.release()
-
-# 5. Image Upload
+# 🖼️ Image input
 if input_type == "Image":
     uploaded_file = st.file_uploader("Upload Image", type=["jpg", "jpeg", "png"])
-    if uploaded_file is not None:
+    if uploaded_file:
         img = Image.open(uploaded_file)
         st.image(img, caption="Uploaded Image", use_column_width=True)
-        annotated_img = run_inference_on_image(img)
-        st.image(annotated_img, caption="Detection Result", use_column_width=True)
+        results = model.predict(img)
+        st.image(results[0].plot(), caption="Detection Result", use_column_width=True)
 
-# 6. Video Upload
+# 🎞️ Video input
 elif input_type == "Video":
     uploaded_video = st.file_uploader("Upload Video", type=["mp4", "avi", "mov"])
-    if uploaded_video is not None:
+    if uploaded_video:
         tfile = tempfile.NamedTemporaryFile(delete=False)
         tfile.write(uploaded_video.read())
-        run_inference_on_video(tfile.name)
+        cap = cv2.VideoCapture(tfile.name)
+        stframe = st.empty()
+
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+            frame = cv2.resize(frame, (640, 360))
+            results = model.predict(frame, stream=True)
+            for r in results:
+                annotated_frame = r.plot()
+                stframe.image(annotated_frame, channels="BGR", use_column_width=True)
+                break
+            time.sleep(0.03)
+
+        cap.release()
         os.unlink(tfile.name)
 
-# 7. Webcam
+# 📷 Webcam input
 elif input_type == "Webcam":
-    st.info("Click Start to open webcam and run detection.")
+    st.info("Click 'Start Webcam' to begin detection from your camera.")
     start = st.button("Start Webcam")
+
     if start:
         cap = cv2.VideoCapture(0)
         stframe = st.empty()
-        while True:
+
+        while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
-                st.warning("Failed to open webcam.")
+                st.warning("Failed to read from webcam.")
                 break
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            results = model(frame_rgb)
-            annotated_frame = results[0].plot()
-            annotated_frame = cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR)
-            stframe.image(annotated_frame, channels="BGR")
 
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            frame = cv2.resize(frame, (640, 360))
+            results = model.predict(frame, stream=True)
+            for r in results:
+                annotated_frame = r.plot()
+                stframe.image(annotated_frame, channels="BGR", use_column_width=True)
                 break
+
+            time.sleep(0.03)
+
         cap.release()
